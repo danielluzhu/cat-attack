@@ -6,9 +6,11 @@ A macOS menu bar app that detects when a cat walks onto your keyboard and locks 
 
 CatAttack installs a system-wide keyboard event tap (CGEvent tap) and scores every key-down against three paw-shaped heuristics:
 
-1. **Mass press** — 4 or more keys held down at the same time.
-2. **Paw-sized press** — 3 or more keys held at once that are *physically adjacent* on the keyboard (it knows the ANSI key layout, so `j`+`k`+`l` is a paw, but `q`+`p`+`z` held for a shortcut is not enough on its own).
-3. **Paw skitter** — 5 or more distinct keys within 300 ms that are all clustered in one region of the keyboard. Real fast typing spreads across the whole board; a walking cat mashes one area at a time.
+1. **Mass press** — 5 or more keys held down at the same time.
+2. **Paw-sized press** — 4 or more keys held at once that are *physically adjacent* on the keyboard (it knows the ANSI key layout, so `u`+`i`+`j`+`k` is a paw, but spread-out keys held for a shortcut are not).
+3. **Paw skitter** — 6 or more distinct keys within 250 ms that are all clustered in one region of the keyboard. Real fast typing spreads across the whole board; a walking cat mashes one area at a time.
+
+These are the **Normal** sensitivity thresholds; the menu bar's *Sensitivity* submenu switches between Low (lock only on obvious cats), Normal, and High (lock eagerly — fast rollover typing may false-positive).
 
 When any rule fires, the keyboard **locks**: every key-down is swallowed before reaching apps (key-ups and modifier changes pass through so nothing gets stuck), a beep sounds, and a floating overlay appears.
 
@@ -46,7 +48,7 @@ swift test
 | 💤 | Detection paused |
 | ⚠️ | Waiting for Accessibility permission |
 
-The menu offers manual lock, pause/resume detection (for gaming or key-mashing work), and quit.
+The menu offers manual lock, pause/resume detection (for gaming or key-mashing work), a sensitivity preset (Low / Normal / High), and quit.
 
 ## Tuning
 
@@ -59,13 +61,14 @@ defaults write com.catattack.CatAttack unlockPhrase -string "letmein"
 # Seconds of silence before auto-unlock (default 10)
 defaults write com.catattack.CatAttack autoUnlockSeconds -int 15
 
-# Detection thresholds
-defaults write com.catattack.CatAttack maxHeldKeys -int 5      # simultaneous keys = instant lock (default 4)
-defaults write com.catattack.CatAttack burstCount -int 6       # distinct keys per burst (default 5)
-defaults write com.catattack.CatAttack burstWindowMs -int 250  # burst window in ms (default 300)
+# Detection thresholds (applied on top of the sensitivity preset)
+defaults write com.catattack.CatAttack sensitivity -string low # low | normal | high
+defaults write com.catattack.CatAttack maxHeldKeys -int 6      # simultaneous keys = instant lock (default 5)
+defaults write com.catattack.CatAttack burstCount -int 7       # distinct keys per burst (default 6)
+defaults write com.catattack.CatAttack burstWindowMs -int 200  # burst window in ms (default 250)
 ```
 
-Restart the app after changing settings.
+Restart the app after changing settings (the Sensitivity menu applies immediately).
 
 ## Project layout
 

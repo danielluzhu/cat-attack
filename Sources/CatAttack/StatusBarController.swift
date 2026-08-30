@@ -1,4 +1,5 @@
 import AppKit
+import CatAttackCore
 
 final class StatusBarController: NSObject, NSMenuDelegate {
     private let item: NSStatusItem
@@ -55,6 +56,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 monitor.isPaused ? "Resume cat detection" : "Pause cat detection",
                 #selector(togglePause))
             menu.addItem(pause)
+            menu.addItem(makeSensitivityMenu())
         } else {
             menu.addItem(makeItem("Open Accessibility Settings…", #selector(openAccessibilitySettings)))
         }
@@ -73,6 +75,34 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let menuItem = NSMenuItem(title: title, action: action, keyEquivalent: key)
         menuItem.target = self
         return menuItem
+    }
+
+    private func makeSensitivityMenu() -> NSMenuItem {
+        let current = UserDefaults.standard.string(forKey: "sensitivity")
+            .flatMap(Sensitivity.init(rawValue:)) ?? .normal
+        let submenu = NSMenu()
+        let titles: [(Sensitivity, String)] = [
+            (.low, "Low — lock only on obvious cats"),
+            (.normal, "Normal"),
+            (.high, "High — lock eagerly"),
+        ]
+        for (sensitivity, title) in titles {
+            let item = makeItem(title, #selector(setSensitivity(_:)))
+            item.representedObject = sensitivity.rawValue
+            item.state = sensitivity == current ? .on : .off
+            submenu.addItem(item)
+        }
+        let parent = NSMenuItem(title: "Sensitivity", action: nil, keyEquivalent: "")
+        parent.submenu = submenu
+        return parent
+    }
+
+    @objc private func setSensitivity(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let sensitivity = Sensitivity(rawValue: raw) else { return }
+        UserDefaults.standard.set(raw, forKey: "sensitivity")
+        monitor.detector.apply(sensitivity)
+        monitor.detector.reset()
     }
 
     @objc private func lockNow() {

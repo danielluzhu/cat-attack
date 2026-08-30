@@ -7,24 +7,52 @@ public struct DetectionVerdict {
     public static let notCat = DetectionVerdict(isCat: false, reason: "")
 }
 
+public enum Sensitivity: String, CaseIterable {
+    case low, normal, high
+}
+
 /// Heuristic detector for cat-on-keyboard input.
 ///
 /// Signals, in order of confidence:
 /// 1. Many keys held down at the same time (paws press whole regions).
-/// 2. Three or more *physically adjacent* keys held at once (paw-sized press).
+/// 2. Several *physically adjacent* keys held at once (paw-sized press).
 /// 3. A fast burst of distinct keys that are all clustered on the keyboard —
 ///    humans typing that fast spread their fingers across the whole board.
 public final class CatDetector {
     /// Held keys at or above this count is a cat, regardless of position.
-    public var maxHeldKeys = 4
+    public var maxHeldKeys = 5
     /// Held keys at or above this count is a cat if they are clustered.
-    public var clusteredHeldKeys = 3
+    public var clusteredHeldKeys = 4
     /// Max pairwise distance (in key units) for held keys to count as one paw.
     public var heldClusterRadius = 2.2
     /// Distinct keys within `burstWindow` at or above this count is a cat if clustered.
-    public var burstCount = 5
-    public var burstWindow: TimeInterval = 0.30
-    public var burstClusterRadius = 3.0
+    public var burstCount = 6
+    public var burstWindow: TimeInterval = 0.25
+    public var burstClusterRadius = 2.5
+
+    public func apply(_ sensitivity: Sensitivity) {
+        switch sensitivity {
+        case .high:
+            // Trigger-happy: fast rollover typing can hold 3 adjacent keys.
+            maxHeldKeys = 4
+            clusteredHeldKeys = 3
+            burstCount = 5
+            burstWindow = 0.30
+            burstClusterRadius = 3.0
+        case .normal:
+            maxHeldKeys = 5
+            clusteredHeldKeys = 4
+            burstCount = 6
+            burstWindow = 0.25
+            burstClusterRadius = 2.5
+        case .low:
+            maxHeldKeys = 6
+            clusteredHeldKeys = 5
+            burstCount = 8
+            burstWindow = 0.25
+            burstClusterRadius = 2.2
+        }
+    }
 
     private var held: [Int64: TimeInterval] = [:]
     private var recent: [(t: TimeInterval, key: Int64)] = []
