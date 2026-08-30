@@ -11,6 +11,7 @@ final class LockController {
 
     private let matcher: UnlockPhraseMatcher
     private var overlay: LockOverlayWindow?
+    private var toast: UnlockToastWindow?
     private var autoUnlockTimer: Timer?
 
     init() {
@@ -59,6 +60,16 @@ final class LockController {
         overlay?.orderOut(nil)
         overlay = nil
         onStateChange?()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isLocked else { return }
+            self.toast?.orderOut(nil)
+            let toast = UnlockToastWindow(message: "Welcome back, human.")
+            self.toast = toast
+            toast.show(for: 2.5) { [weak self] in
+                if self?.toast === toast { self?.toast = nil }
+            }
+        }
     }
 
     /// Called for every swallowed key-down while locked.

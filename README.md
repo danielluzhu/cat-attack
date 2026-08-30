@@ -20,6 +20,8 @@ When any rule fires, the keyboard **locks**: every key-down is swallowed before 
 - **Click "Unlock with mouse"** on the overlay, or use the 🙀 menu bar item.
 - **Walk away** — it auto-unlocks after 10 s with no key presses (the cat left).
 
+However it disengages, a brief "✅ Keyboard unlocked" popup confirms the keyboard is live again.
+
 ## Build & run
 
 ```bash
