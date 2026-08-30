@@ -5,6 +5,11 @@ import AppKit
 final class LockOverlayWindow: NSPanel {
     var onUnlockClicked: (() -> Void)?
 
+    // A borderless panel refuses key status by default, and a non-key window
+    // treats the first click as an activation click — the unlock button then
+    // needs two clicks. Accepting key status makes the first click land.
+    override var canBecomeKey: Bool { true }
+
     private let phrase: String
     private let progressLabel = NSTextField(labelWithString: "")
 
@@ -26,6 +31,7 @@ final class LockOverlayWindow: NSPanel {
         backgroundColor = .clear
         isFloatingPanel = true
         hidesOnDeactivate = false
+        isReleasedWhenClosed = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         let effect = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
