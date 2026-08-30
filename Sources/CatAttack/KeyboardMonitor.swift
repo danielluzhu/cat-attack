@@ -11,6 +11,7 @@ final class KeyboardMonitor {
     private let lock: LockController
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var watchdog: Timer?
 
     private(set) var isRunning = false
     var isPaused = false
@@ -50,6 +51,19 @@ final class KeyboardMonitor {
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         isRunning = true
+
+        // macOS silently disables a tap it thinks is unresponsive; if that
+        // happened while locked, typing the unlock phrase would go nowhere.
+        // Revive the tap whenever it drops.
+        let watchdogTimer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+            guard let self, let tap = self.tap else { return }
+            if !CGEvent.tapIsEnabled(tap: tap) {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                NSLog("CatAttack: event tap was disabled — re-enabled by watchdog")
+            }
+        }
+        RunLoop.main.add(watchdogTimer, forMode: .common)
+        watchdog = watchdogTimer
     }
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {

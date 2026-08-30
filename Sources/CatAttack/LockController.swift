@@ -29,18 +29,24 @@ final class LockController {
         }
         isLocked = true
         matcher.reset()
-        NSSound.beep()
-
-        let window = LockOverlayWindow(
-            phrase: unlockPhrase,
-            autoUnlockSeconds: autoUnlockSeconds,
-            reason: reason
-        )
-        window.onUnlockClicked = { [weak self] in self?.unlock() }
-        window.orderFrontRegardless()
-        overlay = window
-
         restartAutoUnlockTimer()
+
+        // Swallowing must engage instantly, but window creation is too slow
+        // for the event tap callback we are called from — if the callback
+        // stalls, macOS disables the tap and the lock can neither hold nor
+        // be typed away. Defer all UI to the next run-loop turn.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isLocked, self.overlay == nil else { return }
+            NSSound.beep()
+            let window = LockOverlayWindow(
+                phrase: self.unlockPhrase,
+                autoUnlockSeconds: self.autoUnlockSeconds,
+                reason: reason
+            )
+            window.onUnlockClicked = { [weak self] in self?.unlock() }
+            window.orderFrontRegardless()
+            self.overlay = window
+        }
         onStateChange?()
     }
 
@@ -67,8 +73,11 @@ final class LockController {
 
     private func restartAutoUnlockTimer() {
         autoUnlockTimer?.invalidate()
-        autoUnlockTimer = Timer.scheduledTimer(withTimeInterval: autoUnlockSeconds, repeats: false) { [weak self] _ in
+        // .common mode so the timer still fires while a menu is open.
+        let timer = Timer(timeInterval: autoUnlockSeconds, repeats: false) { [weak self] _ in
             self?.unlock()
         }
+        RunLoop.main.add(timer, forMode: .common)
+        autoUnlockTimer = timer
     }
 }
