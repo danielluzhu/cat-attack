@@ -78,6 +78,30 @@ Restart the app after changing settings (the Sensitivity menu applies immediatel
 - `Sources/CatAttack/` — the app: event tap ([KeyboardMonitor.swift](Sources/CatAttack/KeyboardMonitor.swift)), lock state + unlock phrase ([LockController.swift](Sources/CatAttack/LockController.swift)), overlay panel, menu bar item.
 - `Tests/CatAttackTests/` — cat vs. human scenarios.
 
+## Troubleshooting
+
+**The menu bar shows ⚠️ and nothing locks, even though CatAttack is listed in Accessibility.**
+
+This is the usual symptom after a rebuild. The build script ad-hoc signs the app, which gives it a *new code identity* every time, so macOS stops honouring the existing grant — System Settings still shows CatAttack switched on, but the app is denied and sits idle.
+
+Fix it by re-granting: System Settings → Privacy & Security → Accessibility, then **turn CatAttack off and on again** (or remove it with "−" and re-add `build/CatAttack.app`). The app re-checks every 3 seconds and activates itself as soon as the grant lands, so there's no need to relaunch it.
+
+To stop this recurring, build with a stable signing identity. Create a self-signed code-signing certificate once in Keychain Access (Certificate Assistant → Create a Certificate, type "Code Signing"), then:
+
+```bash
+CATATTACK_SIGN_IDENTITY="CatAttack Self Signed" ./scripts/make-app.sh
+```
+
+Grants then survive rebuilds, because the recorded identity is the certificate rather than the exact binary.
+
+**Checking what the app thinks is happening:**
+
+```bash
+log show --last 10m --predicate 'process == "CatAttack"' --style compact | grep "CatAttack:"
+```
+
+It logs `event tap active — watching for cats` on success, and the specific reason on failure.
+
 ## Notes & limitations
 
 - Key layout math assumes a US ANSI layout; other layouts still work, but adjacency detection is approximate.

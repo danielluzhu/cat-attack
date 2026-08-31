@@ -15,8 +15,11 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 #                            iconutil -c icns -o Resources/AppIcon.icns build/AppIcon.iconset
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
-# Ad-hoc sign so macOS remembers the Accessibility grant across rebuilds.
-codesign --force --sign - "$APP"
+# Ad-hoc signing gives the app a new code identity on every build, so macOS
+# stops honouring the Accessibility grant and it has to be re-granted. Set a
+# stable signing identity to avoid that:
+#   CATATTACK_SIGN_IDENTITY="CatAttack Self Signed" ./scripts/make-app.sh
+codesign --force --sign "${CATATTACK_SIGN_IDENTITY:--}" "$APP"
 
 echo "Built $APP"
 echo "Run it with: open $APP"
