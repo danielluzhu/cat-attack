@@ -3,6 +3,15 @@ import Foundation
 public struct DetectionVerdict {
     public let isCat: Bool
     public let reason: String
+    /// Timestamp of the earliest key press that counted towards this verdict.
+    /// Keystrokes delivered from here on are the cat's, so they can be undone.
+    public let undoSince: TimeInterval
+
+    public init(isCat: Bool, reason: String, undoSince: TimeInterval = 0) {
+        self.isCat = isCat
+        self.reason = reason
+        self.undoSince = undoSince
+    }
 
     public static let notCat = DetectionVerdict(isCat: false, reason: "")
 }
@@ -82,14 +91,23 @@ public final class CatDetector {
         recent.append((t: t, key: key))
         recent.removeAll { t - $0.t > burstWindow }
 
+        let heldSince = held.values.min() ?? t
+        let burstSince = recent.map(\.t).min() ?? t
+
         if held.count >= maxHeldKeys {
-            return DetectionVerdict(isCat: true, reason: "\(held.count) keys held down at once")
+            return DetectionVerdict(
+                isCat: true,
+                reason: "\(held.count) keys held down at once",
+                undoSince: heldSince)
         }
 
         if held.count >= clusteredHeldKeys {
             let pos = held.keys.compactMap(KeyLayout.position(for:))
             if pos.count >= clusteredHeldKeys, maxPairwiseDistance(pos) <= heldClusterRadius {
-                return DetectionVerdict(isCat: true, reason: "\(held.count) neighboring keys held at once (paw-sized press)")
+                return DetectionVerdict(
+                    isCat: true,
+                    reason: "\(held.count) neighboring keys held at once (paw-sized press)",
+                    undoSince: heldSince)
             }
         }
 
@@ -98,14 +116,18 @@ public final class CatDetector {
             let ms = Int(burstWindow * 1000)
             return DetectionVerdict(
                 isCat: true,
-                reason: "\(uniqueRecent.count) different keys in \(ms) ms (too fast to be typing)")
+                reason: "\(uniqueRecent.count) different keys in \(ms) ms (too fast to be typing)",
+                undoSince: min(burstSince, heldSince))
         }
 
         if uniqueRecent.count >= burstCount {
             let pos = uniqueRecent.compactMap(KeyLayout.position(for:))
             if pos.count >= 3, maxPairwiseDistance(pos) <= burstClusterRadius {
                 let ms = Int(burstWindow * 1000)
-                return DetectionVerdict(isCat: true, reason: "\(uniqueRecent.count) clustered keys mashed within \(ms) ms")
+                return DetectionVerdict(
+                    isCat: true,
+                    reason: "\(uniqueRecent.count) clustered keys mashed within \(ms) ms",
+                    undoSince: min(burstSince, heldSince))
             }
         }
 

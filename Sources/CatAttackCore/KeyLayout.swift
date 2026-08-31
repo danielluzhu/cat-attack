@@ -45,4 +45,13 @@ public enum KeyLayout {
     public static func letter(for key: Int64) -> Character? {
         letters[key]
     }
+
+    /// Keys that insert one character, so one backspace undoes each of them.
+    /// Excludes delete, tab and return: backspacing those either does nothing
+    /// useful or eats text the key never inserted.
+    private static let nonTextKeys: Set<Int64> = [51, 48, 36]
+
+    public static func producesText(_ key: Int64) -> Bool {
+        positions[key] != nil && !nonTextKeys.contains(key)
+    }
 }
