@@ -36,6 +36,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let status: String
         if lock.isLocked {
             status = "Keyboard is LOCKED"
+        } else if monitor.trustedButTapFailed {
+            status = "Permission is stale — re-grant to activate"
         } else if !monitor.isRunning {
             status = "Waiting for Accessibility permission…"
         } else if monitor.isPaused {
@@ -58,6 +60,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             menu.addItem(pause)
             menu.addItem(makeSensitivityMenu())
         } else {
+            if monitor.trustedButTapFailed {
+                let hint = NSMenuItem(
+                    title: "Turn CatAttack off, then on again in the list.",
+                    action: nil, keyEquivalent: "")
+                hint.isEnabled = false
+                menu.addItem(hint)
+            }
             menu.addItem(makeItem("Open Accessibility Settings…", #selector(openAccessibilitySettings)))
         }
 
