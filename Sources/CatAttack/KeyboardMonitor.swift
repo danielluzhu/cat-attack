@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import CatAttackCore
 
@@ -11,17 +12,61 @@ final class KeyboardMonitor {
     private let lock: LockController
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var watchdog: Timer?
+    private var supervisor: Timer?
+    private var lastFailureLogged = ""
 
     private(set) var isRunning = false
     var isPaused = false
+    /// Set when Accessibility is granted but the tap still cannot be created —
+    /// usually a stale grant after the app binary was rebuilt.
+    private(set) var trustedButTapFailed = false
+    var onStateChange: (() -> Void)?
 
     init(lock: LockController) {
         self.lock = lock
     }
 
-    func start() {
-        guard tap == nil else { return }
+    /// Starts the tap and keeps it alive for the life of the app: retries while
+    /// the tap is missing (permission not yet granted, or creation failed) and
+    /// re-enables it if macOS ever disables it.
+    func startSupervision() {
+        attemptStart()
+        let timer = Timer(timeInterval: 3, repeats: true) { [weak self] _ in
+            self?.superviseTick()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        supervisor = timer
+    }
+
+    private func superviseTick() {
+        guard let tap else {
+            attemptStart()
+            return
+        }
+        // macOS silently disables a tap it thinks is unresponsive; if that
+        // happened while locked, typing the unlock phrase would go nowhere.
+        if !CGEvent.tapIsEnabled(tap: tap) {
+            CGEvent.tapEnable(tap: tap, enable: true)
+            NSLog("CatAttack: event tap was disabled — re-enabled by watchdog")
+        }
+    }
+
+    private func logOnce(_ message: String) {
+        guard lastFailureLogged != message else { return }
+        lastFailureLogged = message
+        NSLog("%@", message)
+    }
+
+    @discardableResult
+    func attemptStart() -> Bool {
+        guard tap == nil else { return true }
+
+        guard AXIsProcessTrusted() else {
+            trustedButTapFailed = false
+            logOnce("CatAttack: waiting for Accessibility permission")
+            onStateChange?()
+            return false
+        }
 
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
@@ -42,8 +87,17 @@ final class KeyboardMonitor {
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            NSLog("CatAttack: failed to create event tap (Accessibility permission missing?)")
-            return
+            // Accessibility is granted yet the tap was refused. This is what a
+            // stale grant looks like after the app binary is rebuilt: macOS
+            // still lists CatAttack as allowed, but the recorded code identity
+            // no longer matches, so it denies the tap. Keep retrying so the app
+            // recovers the moment the user re-grants, instead of sitting dead.
+            trustedButTapFailed = true
+            logOnce("CatAttack: Accessibility is granted but tapCreate failed — "
+                + "stale permission for a rebuilt binary. Toggle CatAttack off "
+                + "and on in System Settings > Privacy & Security > Accessibility.")
+            onStateChange?()
+            return false
         }
 
         self.tap = tap
@@ -51,19 +105,11 @@ final class KeyboardMonitor {
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         isRunning = true
-
-        // macOS silently disables a tap it thinks is unresponsive; if that
-        // happened while locked, typing the unlock phrase would go nowhere.
-        // Revive the tap whenever it drops.
-        let watchdogTimer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
-            guard let self, let tap = self.tap else { return }
-            if !CGEvent.tapIsEnabled(tap: tap) {
-                CGEvent.tapEnable(tap: tap, enable: true)
-                NSLog("CatAttack: event tap was disabled — re-enabled by watchdog")
-            }
-        }
-        RunLoop.main.add(watchdogTimer, forMode: .common)
-        watchdog = watchdogTimer
+        trustedButTapFailed = false
+        lastFailureLogged = ""
+        NSLog("CatAttack: event tap active — watching for cats")
+        onStateChange?()
+        return true
     }
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
