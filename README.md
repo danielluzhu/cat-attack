@@ -13,6 +13,16 @@ CatAttack installs a system-wide keyboard event tap (CGEvent tap) and scores eve
 
 These are the **Normal** sensitivity thresholds; the menu bar's *Sensitivity* submenu switches between Low (lock only on obvious cats), Normal, and High (lock eagerly — fast rollover typing may false-positive).
 
+### Undoing the cat's typing
+
+Detection needs a few keystrokes of evidence, so by then some characters have already landed in whatever you had open. On locking, CatAttack counts the characters delivered since the paw landed and posts exactly that many backspaces to erase them.
+
+Only the cat's keystrokes are undone — anything typed before the paw landed is left alone, and only character-inserting keys count (Return, Tab and Delete are skipped, since backspacing those would eat text the cat never typed). Deletion is capped at 25 keystrokes so a bad verdict can't chew through a document. Turn it off with:
+
+```bash
+defaults write com.catattack.CatAttack undoCatTyping -bool false
+```
+
 When any rule fires, the keyboard **locks**: every key-down is swallowed before reaching apps (key-ups and modifier changes pass through so nothing gets stuck), a beep sounds, and a floating overlay appears.
 
 ### Unlocking

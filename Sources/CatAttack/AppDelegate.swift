@@ -32,6 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            let sensitivity = Sensitivity(rawValue: raw) {
             detector.apply(sensitivity)
         }
+        if defaults.object(forKey: "undoCatTyping") != nil {
+            monitor.undoCatTyping = defaults.bool(forKey: "undoCatTyping")
+        }
         if defaults.integer(forKey: "maxHeldKeys") > 0 {
             detector.maxHeldKeys = defaults.integer(forKey: "maxHeldKeys")
         }

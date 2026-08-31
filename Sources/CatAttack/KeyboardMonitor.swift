@@ -17,6 +17,10 @@ final class KeyboardMonitor {
 
     private(set) var isRunning = false
     var isPaused = false
+    /// Undo the cat's typing on lock. Off via `defaults write ... undoCatTyping -bool false`.
+    var undoCatTyping = true
+    /// Text-producing key-downs we let through, kept so they can be undone.
+    private var delivered: [TimeInterval] = []
     /// Set when Accessibility is granted but the tap still cannot be created —
     /// usually a stale grant after the app binary was rebuilt.
     private(set) var trustedButTapFailed = false
@@ -113,6 +117,12 @@ final class KeyboardMonitor {
     }
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        // Our own undo backspaces must reach the app untouched, even while
+        // locked, and must not be mistaken for a cat.
+        if CatTypingUndo.isSynthetic(event) {
+            return Unmanaged.passUnretained(event)
+        }
+
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
@@ -130,11 +140,23 @@ final class KeyboardMonitor {
                 return Unmanaged.passUnretained(event)
             }
 
-            let verdict = detector.keyDown(key, at: ProcessInfo.processInfo.systemUptime)
+            let now = ProcessInfo.processInfo.systemUptime
+            let verdict = detector.keyDown(key, at: now)
             if verdict.isCat {
                 detector.reset()
+                // Everything delivered since the paw landed was the cat's.
+                let catKeystrokes = delivered.filter { $0 >= verdict.undoSince }.count
+                delivered.removeAll()
                 lock.lock(reason: verdict.reason)
+                if undoCatTyping {
+                    CatTypingUndo.eraseKeystrokes(count: catKeystrokes)
+                }
                 return nil
+            }
+
+            if KeyLayout.producesText(key) {
+                delivered.append(now)
+                delivered.removeAll { now - $0 > 10 }
             }
             return Unmanaged.passUnretained(event)
 
