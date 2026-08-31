@@ -9,6 +9,7 @@ CatAttack installs a system-wide keyboard event tap (CGEvent tap) and scores eve
 1. **Mass press** — 5 or more keys held down at the same time.
 2. **Paw-sized press** — 4 or more keys held at once that are *physically adjacent* on the keyboard (it knows the ANSI key layout, so `u`+`i`+`j`+`k` is a paw, but spread-out keys held for a shortcut are not).
 3. **Paw skitter** — 6 or more distinct keys within 250 ms that are all clustered in one region of the keyboard. Real fast typing spreads across the whole board; a walking cat mashes one area at a time.
+4. **Mashing** — 7 or more distinct keys within 250 ms anywhere on the keyboard. That is 28 keys/second, about triple what a fast typist sustains, so only a paw (or a human deliberately testing it) gets there. Repeatedly hitting the same few keys does not count, since the rule counts *distinct* keys.
 
 These are the **Normal** sensitivity thresholds; the menu bar's *Sensitivity* submenu switches between Low (lock only on obvious cats), Normal, and High (lock eagerly — fast rollover typing may false-positive).
 

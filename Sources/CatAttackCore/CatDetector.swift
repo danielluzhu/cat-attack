@@ -29,6 +29,10 @@ public final class CatDetector {
     public var burstCount = 6
     public var burstWindow: TimeInterval = 0.25
     public var burstClusterRadius = 2.5
+    /// Distinct keys within `burstWindow` at or above this count is a cat
+    /// wherever they are: 7 keys in 250 ms is 28 keys/second, roughly triple
+    /// what a fast human typist sustains, so only mashing reaches it.
+    public var mashCount = 7
 
     public func apply(_ sensitivity: Sensitivity) {
         switch sensitivity {
@@ -39,18 +43,21 @@ public final class CatDetector {
             burstCount = 5
             burstWindow = 0.30
             burstClusterRadius = 3.0
+            mashCount = 6
         case .normal:
             maxHeldKeys = 5
             clusteredHeldKeys = 4
             burstCount = 6
             burstWindow = 0.25
             burstClusterRadius = 2.5
+            mashCount = 7
         case .low:
             maxHeldKeys = 6
             clusteredHeldKeys = 5
             burstCount = 8
             burstWindow = 0.25
             burstClusterRadius = 2.2
+            mashCount = 9
         }
     }
 
@@ -87,6 +94,13 @@ public final class CatDetector {
         }
 
         let uniqueRecent = Set(recent.map(\.key))
+        if uniqueRecent.count >= mashCount {
+            let ms = Int(burstWindow * 1000)
+            return DetectionVerdict(
+                isCat: true,
+                reason: "\(uniqueRecent.count) different keys in \(ms) ms (too fast to be typing)")
+        }
+
         if uniqueRecent.count >= burstCount {
             let pos = uniqueRecent.compactMap(KeyLayout.position(for:))
             if pos.count >= 3, maxPairwiseDistance(pos) <= burstClusterRadius {

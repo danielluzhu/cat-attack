@@ -86,6 +86,35 @@ final class CatDetectorTests: XCTestCase {
         XCTAssertFalse(verdict.isCat, verdict.reason)
     }
 
+    func testWideHandMashIsCat() {
+        let detector = CatDetector()
+        // Seven keys spread right across the keyboard in 210 ms — too fast to
+        // be typing, so it locks even though the keys are nowhere near
+        // each other (a human testing it, or a cat crossing the whole board).
+        let keys: [Int64] = [12, 0, 6, 15, 44, 35, 50]
+        var t = 0.0
+        var verdict = DetectionVerdict.notCat
+        for key in keys {
+            verdict = detector.keyDown(key, at: t)
+            detector.keyUp(key)
+            t += 0.03
+        }
+        XCTAssertTrue(verdict.isCat)
+    }
+
+    func testFastHumanTypingStaysBelowMashThreshold() {
+        let detector = CatDetector()
+        // 120 wpm ≈ 10 keys/second, so ~2-3 keys land in any 250 ms window.
+        let keys: [Int64] = [17, 4, 14, 0, 15, 6, 44, 35, 50, 12]
+        var t = 0.0
+        for key in keys {
+            let verdict = detector.keyDown(key, at: t)
+            XCTAssertFalse(verdict.isCat, "false positive: \(verdict.reason)")
+            detector.keyUp(key)
+            t += 0.10
+        }
+    }
+
     func testResetClearsState() {
         let detector = CatDetector()
         _ = detector.keyDown(38, at: 0)
