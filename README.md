@@ -11,6 +11,10 @@ CatAttack installs a system-wide keyboard event tap (CGEvent tap) and scores eve
 3. **Paw skitter** — 6 or more distinct keys within 250 ms that are all clustered in one region of the keyboard. Real fast typing spreads across the whole board; a walking cat mashes one area at a time.
 4. **Mashing** — 7 or more distinct keys within 250 ms anywhere on the keyboard. That is 28 keys/second, about triple what a fast typist sustains, so only a paw (or a human deliberately testing it) gets there. Repeatedly hitting the same few keys does not count, since the rule counts *distinct* keys.
 
+**Swiping a hand across the keys is exempt.** A drag is fast enough to trip the rate rules (3 and 4), so those two ignore input that traces a swipe: every key lands on a neighbour of the last, the path travels at least 3 key widths, and it keeps heading one way instead of doubling back. A paw cannot trace that shape, because its keys land in whatever order the toes touch down. The held-key rules (1 and 2) still apply regardless — a paw resting on the keys is a cat however it got there.
+
+The exemption covers a genuine drag, not scribbling back and forth over one area at mashing speed; that still locks. If your swipes do trip it, drop to Low sensitivity or raise `mashCount`.
+
 These are the **Normal** sensitivity thresholds; the menu bar's *Sensitivity* submenu switches between Low (lock only on obvious cats), Normal, and High (lock eagerly — fast rollover typing may false-positive).
 
 ### Undoing the cat's typing

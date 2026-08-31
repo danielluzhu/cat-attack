@@ -43,6 +43,19 @@ public final class CatDetector {
     /// what a fast human typist sustains, so only mashing reaches it.
     public var mashCount = 7
 
+    // A hand swiped across the keys is fast enough to look like mashing, so
+    // the rate rules ignore input that traces a swipe: a contiguous, mostly
+    // straight, one-directional path. A paw cannot do that — its keys land in
+    // whatever order the toes touch down, so the path doubles back on itself.
+    /// Largest gap between consecutive keys that still counts as one drag.
+    public var swipeMaxStep = 2.5
+    /// How far the path must travel end to end, in key widths.
+    public var swipeMinSpan = 3.0
+    /// End-to-end distance divided by path length; 1.0 is a perfectly straight line.
+    public var swipeStraightness = 0.6
+    /// Keys needed before a path can be judged a swipe at all.
+    public var swipeMinKeys = 4
+
     public func apply(_ sensitivity: Sensitivity) {
         switch sensitivity {
         case .high:
@@ -112,6 +125,14 @@ public final class CatDetector {
         }
 
         let uniqueRecent = Set(recent.map(\.key))
+
+        // Rate alone cannot tell a swiped hand from a paw, so let a swipe pass.
+        // The held-key rules above still apply: a paw resting on the keys is a
+        // cat however it got there.
+        if looksLikeSwipe(orderedRecentKeys()) {
+            return .notCat
+        }
+
         if uniqueRecent.count >= mashCount {
             let ms = Int(burstWindow * 1000)
             return DetectionVerdict(
@@ -132,6 +153,41 @@ public final class CatDetector {
         }
 
         return .notCat
+    }
+
+    /// Recent keys in the order they were pressed, without consecutive repeats.
+    private func orderedRecentKeys() -> [Int64] {
+        var keys: [Int64] = []
+        for entry in recent where keys.last != entry.key {
+            keys.append(entry.key)
+        }
+        return keys
+    }
+
+    /// True when the keys trace a drag across the keyboard: every step lands on
+    /// a neighbouring key, the path travels a real distance, and it keeps going
+    /// one way instead of doubling back.
+    func looksLikeSwipe(_ keys: [Int64]) -> Bool {
+        let pts = keys.compactMap(KeyLayout.position(for:))
+        guard pts.count >= swipeMinKeys, pts.count == keys.count else { return false }
+
+        var pathLength = 0.0
+        for i in 1..<pts.count {
+            let step = distance(pts[i - 1], pts[i])
+            // A jump to a distant key is not a drag; it is a leap.
+            if step > swipeMaxStep { return false }
+            pathLength += step
+        }
+        guard pathLength > 0 else { return false }
+
+        let span = distance(pts[0], pts[pts.count - 1])
+        return span >= swipeMinSpan && span / pathLength >= swipeStraightness
+    }
+
+    private func distance(_ a: (x: Double, y: Double), _ b: (x: Double, y: Double)) -> Double {
+        let dx = a.x - b.x
+        let dy = a.y - b.y
+        return (dx * dx + dy * dy).squareRoot()
     }
 
     private func maxPairwiseDistance(_ pts: [(x: Double, y: Double)]) -> Double {
