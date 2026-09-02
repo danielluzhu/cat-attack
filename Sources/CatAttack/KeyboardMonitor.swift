@@ -168,7 +168,13 @@ final class KeyboardMonitor {
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
 
             if lock.isLocked {
-                if !isRepeat { lock.handleLockedKeyDown(keyCode: key) }
+                if isRepeat {
+                    // A paw resting on a key repeats it; that is the cat still
+                    // being here, so it must keep the auto-unlock at bay.
+                    lock.noteActivity()
+                } else {
+                    lock.handleLockedKeyDown(keyCode: key)
+                }
                 return nil  // swallow: this is the "locked" part
             }
             if isPaused || isRepeat {
@@ -190,10 +196,18 @@ final class KeyboardMonitor {
             return Unmanaged.passUnretained(event)
 
         case .keyUp:
-            if !lock.isLocked && !isPaused {
+            if lock.isLocked {
+                lock.noteActivity()
+            } else if !isPaused {
                 detector.keyUp(event.getIntegerValueField(.keyboardEventKeycode))
             }
             // Always deliver key-ups so apps don't end up with stuck keys.
+            return Unmanaged.passUnretained(event)
+
+        case .flagsChanged:
+            // Modifiers pass through so nothing sticks, but a cat leaning on
+            // Shift is still a cat present.
+            lock.noteActivity()
             return Unmanaged.passUnretained(event)
 
         default:

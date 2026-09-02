@@ -1,15 +1,9 @@
 import AppKit
 
 /// Full-attention floating panel shown while the keyboard is locked.
-/// Non-activating so it never steals focus; the unlock button works by mouse.
+/// Purely informational: it never takes focus and has nothing to click, so a
+/// cat on the trackpad cannot interact with it.
 final class LockOverlayWindow: NSPanel {
-    var onUnlockClicked: (() -> Void)?
-
-    // A borderless panel refuses key status by default, and a non-key window
-    // treats the first click as an activation click — the unlock button then
-    // needs two clicks. Accepting key status makes the first click land.
-    override var canBecomeKey: Bool { true }
-
     private let phrase: String
     private let progressLabel = NSTextField(labelWithString: "")
 
@@ -48,21 +42,18 @@ final class LockOverlayWindow: NSPanel {
         reasonLabel.font = .systemFont(ofSize: 13)
         reasonLabel.textColor = .secondaryLabelColor
 
-        let instruction = NSTextField(labelWithString: "Keyboard is locked. Type “\(phrase)” to unlock.")
+        let instruction = NSTextField(labelWithString: "Keyboard, mouse and trackpad are locked. Type “\(phrase)” to unlock.")
         instruction.font = .systemFont(ofSize: 15)
 
         progressLabel.font = .monospacedSystemFont(ofSize: 26, weight: .semibold)
         updateProgress(matched: 0)
 
         let autoLabel = NSTextField(
-            labelWithString: "Auto-unlocks after \(Int(autoUnlockSeconds)) s without any key presses.")
+            labelWithString: "Unlocks by itself after \(Int(autoUnlockSeconds)) s with no keyboard or mouse activity at all.")
         autoLabel.font = .systemFont(ofSize: 12)
         autoLabel.textColor = .secondaryLabelColor
 
-        let button = NSButton(title: "Unlock with mouse", target: self, action: #selector(unlockClicked))
-        button.bezelStyle = .rounded
-
-        let stack = NSStackView(views: [title, reasonLabel, instruction, progressLabel, autoLabel, button])
+        let stack = NSStackView(views: [title, reasonLabel, instruction, progressLabel, autoLabel])
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 10
@@ -79,9 +70,5 @@ final class LockOverlayWindow: NSPanel {
             index < matched ? String(char) : "_"
         }
         progressLabel.stringValue = chars.joined(separator: " ")
-    }
-
-    @objc private func unlockClicked() {
-        onUnlockClicked?()
     }
 }

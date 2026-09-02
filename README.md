@@ -32,11 +32,14 @@ When any rule fires, the keyboard **locks**: every key-down is swallowed before 
 
 ### Unlocking
 
-- **Type the unlock phrase** (default `human`) — key presses are still observed while locked, just not delivered, so a human can type it. A cat statistically cannot.
-- **Click "Unlock with mouse"** on the overlay, or use the 🙀 menu bar item.
-- **Walk away** — it auto-unlocks after 10 s with no key presses (the cat left).
+Only two things unlock it, and neither is something a cat can do:
 
-However it disengages, a brief "✅ Keyboard unlocked" popup confirms the keyboard is live again.
+- **Type the unlock phrase** (default `human`) — key presses are still observed while locked, just not delivered, so a human can type it. A cat statistically cannot.
+- **Walk away** — it unlocks by itself after 60 s with *no input of any kind*. Any activity resets that clock: key repeats from a paw resting on a key, mouse or trackpad motion, a modifier being leaned on. A cat that is still on the keyboard keeps producing some of that; a cat that has left does not.
+
+There is deliberately nothing to click. An earlier version had an "Unlock with mouse" button on the overlay, and a cat on the trackpad clicked it. The menu bar's Unlock item still exists for humans but is unreachable while the mouse is locked.
+
+However it disengages, a brief "✅ Keyboard unlocked" popup confirms the keyboard is live again, and the reason for every lock and unlock is written to the log.
 
 ## Build & run
 
@@ -76,8 +79,8 @@ Settings are read at launch from the app's defaults domain:
 # Unlock phrase (lowercase letters only; default "human")
 defaults write com.catattack.CatAttack unlockPhrase -string "letmein"
 
-# Seconds of silence before auto-unlock (default 10)
-defaults write com.catattack.CatAttack autoUnlockSeconds -int 15
+# Seconds with no keyboard or mouse input at all before auto-unlock (default 60)
+defaults write com.catattack.CatAttack autoUnlockSeconds -int 120
 
 # Detection thresholds (applied on top of the sensitivity preset)
 defaults write com.catattack.CatAttack sensitivity -string low # low | normal | high

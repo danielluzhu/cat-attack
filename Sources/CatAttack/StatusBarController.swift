@@ -120,7 +120,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func unlockNow() {
-        lock.unlock()
+        lock.unlock(cause: "menu bar")
         refresh()
     }
 
