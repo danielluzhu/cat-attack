@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if defaults.object(forKey: "undoCatTyping") != nil {
             monitor.undoCatTyping = defaults.bool(forKey: "undoCatTyping")
         }
+        monitor.traceKeys = defaults.bool(forKey: "traceKeys")
         if defaults.integer(forKey: "maxHeldKeys") > 0 {
             detector.maxHeldKeys = defaults.integer(forKey: "maxHeldKeys")
         }

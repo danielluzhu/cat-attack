@@ -35,6 +35,10 @@ final class KeyboardMonitor {
     var undoCatTyping = true
     /// Text-producing key-downs we let through, kept so they can be undone.
     private var delivered: [TimeInterval] = []
+    /// Log every key event with a relative timestamp, to see what a real cat
+    /// produces. On via `defaults write ... traceKeys -bool true`.
+    var traceKeys = false
+    private var traceOrigin: TimeInterval = 0
     /// Set when Accessibility is granted but the tap still cannot be created —
     /// usually a stale grant after the app binary was rebuilt.
     private(set) var trustedButTapFailed = false
@@ -167,12 +171,25 @@ final class KeyboardMonitor {
         return true
     }
 
+    private func trace(_ type: CGEventType, _ event: CGEvent) {
+        guard traceKeys, type == .keyDown || type == .keyUp else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if traceOrigin == 0 || now - traceOrigin > 5 { traceOrigin = now }
+        let key = event.getIntegerValueField(.keyboardEventKeycode)
+        let repeatFlag = event.getIntegerValueField(.keyboardEventAutorepeat) != 0 ? " repeat" : ""
+        let name = KeyLayout.letter(for: key).map(String.init) ?? "#\(key)"
+        NSLog("CatAttack trace: +%6.0fms %@ %@%@ held=%d",
+              (now - traceOrigin) * 1000, type == .keyDown ? "DOWN" : "UP  ", name, repeatFlag,
+              detector.heldKeys.count)
+    }
+
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // Our own undo backspaces must reach the app untouched, even while
         // locked, and must not be mistaken for a cat.
         if CatTypingUndo.isSynthetic(event) {
             return Unmanaged.passUnretained(event)
         }
+        trace(type, event)
 
         if Self.pointerEventTypes.contains(type.rawValue) {
             guard lock.isLocked else { return Unmanaged.passUnretained(event) }
