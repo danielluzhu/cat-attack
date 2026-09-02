@@ -13,6 +13,7 @@ final class KeyboardMonitor {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var supervisor: Timer?
+    private var pawTimer: Timer?
     private var lastFailureLogged = ""
 
     private(set) var isRunning = false
@@ -40,6 +41,40 @@ final class KeyboardMonitor {
         }
         RunLoop.main.add(timer, forMode: .common)
         supervisor = timer
+
+        // A paw that has settled presses nothing new, so no key event would
+        // ever re-run the detector. Re-check the held keys on a timer instead.
+        let paw = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.pawTick()
+        }
+        RunLoop.main.add(paw, forMode: .common)
+        pawTimer = paw
+    }
+
+    /// The real state of a key, straight from the HID system. Keeps the
+    /// detector's idea of what is held honest even if a key-up was missed.
+    private func keyIsDown(_ key: Int64) -> Bool {
+        CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(key))
+    }
+
+    private func pawTick() {
+        guard isRunning, !isPaused, !lock.isLocked, !detector.heldKeys.isEmpty else { return }
+        detector.syncHeld(isDown: keyIsDown)
+        let verdict = detector.evaluateHeld(at: ProcessInfo.processInfo.systemUptime)
+        if verdict.isCat {
+            engageLock(verdict)
+        }
+    }
+
+    private func engageLock(_ verdict: DetectionVerdict) {
+        detector.reset()
+        // Everything delivered since the paw landed was the cat's.
+        let catKeystrokes = delivered.filter { $0 >= verdict.undoSince }.count
+        delivered.removeAll()
+        lock.lock(reason: verdict.reason)
+        if undoCatTyping {
+            CatTypingUndo.eraseKeystrokes(count: catKeystrokes)
+        }
     }
 
     private func superviseTick() {
@@ -141,16 +176,10 @@ final class KeyboardMonitor {
             }
 
             let now = ProcessInfo.processInfo.systemUptime
+            detector.syncHeld(isDown: keyIsDown)
             let verdict = detector.keyDown(key, at: now)
             if verdict.isCat {
-                detector.reset()
-                // Everything delivered since the paw landed was the cat's.
-                let catKeystrokes = delivered.filter { $0 >= verdict.undoSince }.count
-                delivered.removeAll()
-                lock.lock(reason: verdict.reason)
-                if undoCatTyping {
-                    CatTypingUndo.eraseKeystrokes(count: catKeystrokes)
-                }
+                engageLock(verdict)
                 return nil
             }
 

@@ -56,6 +56,18 @@ public final class CatDetector {
     /// Keys needed before a path can be judged a swipe at all.
     public var swipeMinKeys = 4
 
+    // A paw resting on the keys is told apart from typing by duration: rollover
+    // overlaps keys for tens of milliseconds, a paw stays down for hundreds.
+    // These rules run from a timer, so a cat that has settled and gone still
+    // is caught even though it presses nothing new.
+    /// How long keys must stay down together before they count as resting.
+    public var sustainedHoldSeconds: TimeInterval = 0.3
+    /// Clustered keys held that long are a paw.
+    public var sustainedClusteredKeys = 3
+    public var sustainedClusterRadius = 2.5
+    /// Keys held that long anywhere are a cat lying across the keyboard.
+    public var sustainedAnyKeys = 4
+
     public func apply(_ sensitivity: Sensitivity) {
         switch sensitivity {
         case .high:
@@ -66,6 +78,8 @@ public final class CatDetector {
             burstWindow = 0.30
             burstClusterRadius = 3.0
             mashCount = 6
+            sustainedHoldSeconds = 0.25
+            sustainedClusteredKeys = 3
         case .normal:
             maxHeldKeys = 5
             clusteredHeldKeys = 4
@@ -73,6 +87,8 @@ public final class CatDetector {
             burstWindow = 0.25
             burstClusterRadius = 2.5
             mashCount = 7
+            sustainedHoldSeconds = 0.3
+            sustainedClusteredKeys = 3
         case .low:
             maxHeldKeys = 6
             clusteredHeldKeys = 5
@@ -80,6 +96,8 @@ public final class CatDetector {
             burstWindow = 0.25
             burstClusterRadius = 2.2
             mashCount = 9
+            sustainedHoldSeconds = 0.5
+            sustainedClusteredKeys = 4
         }
     }
 
@@ -92,14 +110,49 @@ public final class CatDetector {
         held.removeValue(forKey: key)
     }
 
+    public var heldKeys: Set<Int64> { Set(held.keys) }
+
+    /// Reconciles held keys with the real key state, so a missed key-up cannot
+    /// leave a phantom key held and a genuinely held key is never forgotten.
+    public func syncHeld(isDown: (Int64) -> Bool) {
+        for key in held.keys where !isDown(key) {
+            held.removeValue(forKey: key)
+        }
+    }
+
+    /// Re-checks the keys still down without a new press. Call periodically.
+    public func evaluateHeld(at t: TimeInterval) -> DetectionVerdict {
+        guard held.count >= sustainedClusteredKeys,
+              let newest = held.values.max(),
+              t - newest >= sustainedHoldSeconds
+        else { return .notCat }
+
+        let ms = Int((t - newest) * 1000)
+        let since = held.values.min() ?? t
+
+        if held.count >= sustainedAnyKeys {
+            return DetectionVerdict(
+                isCat: true,
+                reason: "\(held.count) keys held down for \(ms) ms (cat lying on the keyboard)",
+                undoSince: since)
+        }
+
+        let pos = held.keys.compactMap(KeyLayout.position(for:))
+        if pos.count >= sustainedClusteredKeys, maxPairwiseDistance(pos) <= sustainedClusterRadius {
+            return DetectionVerdict(
+                isCat: true,
+                reason: "\(held.count) neighboring keys held for \(ms) ms (paw resting on the keys)",
+                undoSince: since)
+        }
+        return .notCat
+    }
+
     public func reset() {
         held.removeAll()
         recent.removeAll()
     }
 
     public func keyDown(_ key: Int64, at t: TimeInterval) -> DetectionVerdict {
-        // Drop keys whose key-up we may have missed (app started mid-press, etc).
-        held = held.filter { t - $0.value < 15 }
         held[key] = t
         recent.append((t: t, key: key))
         recent.removeAll { t - $0.t > burstWindow }
