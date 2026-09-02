@@ -6,9 +6,22 @@ import CatAttackCore
 /// Owns the CGEvent tap. While unlocked it feeds key events to the detector;
 /// while locked it swallows key-downs (key-ups and modifiers pass through so
 /// apps never see stuck keys) and forwards them to the lock controller so a
-/// human can type the unlock phrase.
+/// human can type the unlock phrase. Mouse, scroll and trackpad gestures are
+/// swallowed too while locked — a cat that cannot type can still click.
 final class KeyboardMonitor {
     let detector = CatDetector()
+
+    /// Pointer and trackpad event types, by raw value: the CGEventType cases
+    /// for buttons, motion, drags and scrolling, plus the AppKit gesture types
+    /// (rotate 18, begin/end gesture 19–20, gesture 29, magnify 30, swipe 31,
+    /// smart magnify 32) that also travel through the tap.
+    private static let pointerEventTypes: Set<UInt32> = Set(
+        [
+            CGEventType.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
+            .otherMouseDown, .otherMouseUp, .mouseMoved, .leftMouseDragged,
+            .rightMouseDragged, .otherMouseDragged, .scrollWheel,
+        ].map(\.rawValue) + [18, 19, 20, 29, 30, 31, 32]
+    )
     private let lock: LockController
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -107,10 +120,13 @@ final class KeyboardMonitor {
             return false
         }
 
-        let mask: CGEventMask =
+        var mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
             (1 << CGEventType.keyUp.rawValue) |
             (1 << CGEventType.flagsChanged.rawValue)
+        for raw in Self.pointerEventTypes {
+            mask |= CGEventMask(1) << CGEventMask(raw)
+        }
 
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else { return Unmanaged.passUnretained(event) }
@@ -156,6 +172,13 @@ final class KeyboardMonitor {
         // locked, and must not be mistaken for a cat.
         if CatTypingUndo.isSynthetic(event) {
             return Unmanaged.passUnretained(event)
+        }
+
+        if Self.pointerEventTypes.contains(type.rawValue) {
+            guard lock.isLocked else { return Unmanaged.passUnretained(event) }
+            // A cat on the trackpad is a cat still here, and gets no clicks.
+            lock.noteActivity()
+            return nil
         }
 
         switch type {

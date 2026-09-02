@@ -30,6 +30,8 @@ defaults write com.catattack.CatAttack undoCatTyping -bool false
 
 When any rule fires, the keyboard **locks**: every key-down is swallowed before reaching apps (key-ups and modifier changes pass through so nothing gets stuck), a beep sounds, and a floating overlay appears.
 
+**The mouse and trackpad lock too.** Clicks, drags, scrolling and trackpad gestures are all swallowed while locked, so a cat that has moved from the keys to the trackpad can't click on anything either. (The pointer may still move on screen; it just can't do anything.)
+
 ### Unlocking
 
 Only two things unlock it, and neither is something a cat can do:
@@ -125,4 +127,4 @@ It logs `event tap active — watching for cats` on success, and the specific re
 
 - Key layout math assumes a US ANSI layout; other layouts still work, but adjacency detection is approximate.
 - The tap needs Accessibility (not just Input Monitoring) because it actively blocks events, not merely observes them.
-- Locking swallows keyboard input only — mouse/trackpad keep working, which is also your escape hatch.
+- Locking swallows the mouse and trackpad as well as the keyboard, so typing the unlock phrase is the only way out while a cat is present; the 60 s auto-unlock after total silence is the safety net if the phrase ever fails.
