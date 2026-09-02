@@ -4,15 +4,16 @@ A macOS menu bar app that detects when a cat walks onto your keyboard and locks 
 
 ## How it works
 
-CatAttack installs a system-wide keyboard event tap (CGEvent tap) and scores every key-down against five paw-shaped heuristics:
+CatAttack installs a system-wide keyboard event tap (CGEvent tap) and scores every key-down against six paw-shaped heuristics:
 
 1. **Mass press** — 5 or more keys held down at the same time.
 2. **Paw-sized press** — 4 or more keys held at once that are *physically adjacent* on the keyboard (it knows the ANSI key layout, so `u`+`i`+`j`+`k` is a paw, but spread-out keys held for a shortcut are not).
 3. **Paw skitter** — 6 or more distinct keys within 250 ms that are all clustered in one region of the keyboard. Real fast typing spreads across the whole board; a walking cat mashes one area at a time.
 4. **Resting paw** — 3 or more neighbouring keys held down together for 300 ms, or 4 or more held that long anywhere. Typing rollover overlaps keys for tens of milliseconds; a paw stays down for hundreds. This check runs on a timer every 100 ms, so a cat that has settled and gone still is caught even though it presses nothing new, and held keys are reconciled against real hardware key state so nothing is forgotten (and no missed key-up can invent a phantom press).
-5. **Mashing** — 7 or more distinct keys within 250 ms anywhere on the keyboard. That is 28 keys/second, about triple what a fast typist sustains, so only a paw (or a human deliberately testing it) gets there. Repeatedly hitting the same few keys does not count, since the rule counts *distinct* keys.
+5. **Paw step** — two neighbouring keys going down within 20 ms of each other. Fingers essentially never do that (even a fast roll is 30–60 ms apart); a paw landing always does. One such step is noted; a second step within 3 s — a cat walking — locks. Three keys within 20 ms locks on the spot, whatever they are.
+6. **Mashing** — 7 or more distinct keys within 250 ms anywhere on the keyboard. That is 28 keys/second, about triple what a fast typist sustains, so only a paw (or a human deliberately testing it) gets there. Repeatedly hitting the same few keys does not count, since the rule counts *distinct* keys.
 
-**Swiping a hand across the keys is exempt.** A drag is fast enough to trip the rate rules (3 and 5), so those two ignore input that traces a swipe: every key lands on a neighbour of the last, the path travels at least 3 key widths, and it keeps heading one way instead of doubling back. A paw cannot trace that shape, because its keys land in whatever order the toes touch down. The held-key rules (1, 2 and 4) still apply regardless — a paw resting on the keys is a cat however it got there.
+**Swiping a hand across the keys is exempt.** A drag is fast enough to trip the rate rules (3 and 6), so those two ignore input that traces a swipe: every key lands on a neighbour of the last, the path travels at least 3 key widths, and it keeps heading one way instead of doubling back. A paw cannot trace that shape, because its keys land in whatever order the toes touch down. The held-key rules (1, 2 and 4) still apply regardless — a paw resting on the keys is a cat however it got there.
 
 The exemption covers a genuine drag, not scribbling back and forth over one area at mashing speed; that still locks. If your swipes do trip it, drop to Low sensitivity or raise `mashCount`.
 

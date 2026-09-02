@@ -68,6 +68,21 @@ public final class CatDetector {
     /// Keys held that long anywhere are a cat lying across the keyboard.
     public var sustainedAnyKeys = 4
 
+    // A walking cat plants each paw on two or three keys at once, lifts within
+    // a fraction of a second, and steps again — too few keys for the held
+    // rules, too slow for the rate rules. What gives it away is simultaneity:
+    // fingers never land two keys within 20 ms of each other (even a fast roll
+    // is 30–60 ms), but a paw always does.
+    /// Keys going down within this of each other are one landing.
+    public var stepWindow: TimeInterval = 0.02
+    /// A landing of this many keys locks on the spot, whatever the keys.
+    public var stepInstantKeys = 3
+    /// A landing of two keys counts as a step only if they neighbour each other.
+    public var stepClusterRadius = 2.2
+    /// Steps within `walkWindow` needed to lock.
+    public var stepsToLock = 2
+    public var walkWindow: TimeInterval = 3.0
+
     public func apply(_ sensitivity: Sensitivity) {
         switch sensitivity {
         case .high:
@@ -80,6 +95,7 @@ public final class CatDetector {
             mashCount = 6
             sustainedHoldSeconds = 0.25
             sustainedClusteredKeys = 3
+            stepsToLock = 1
         case .normal:
             maxHeldKeys = 5
             clusteredHeldKeys = 4
@@ -89,6 +105,7 @@ public final class CatDetector {
             mashCount = 7
             sustainedHoldSeconds = 0.3
             sustainedClusteredKeys = 3
+            stepsToLock = 2
         case .low:
             maxHeldKeys = 6
             clusteredHeldKeys = 5
@@ -98,11 +115,14 @@ public final class CatDetector {
             mashCount = 9
             sustainedHoldSeconds = 0.5
             sustainedClusteredKeys = 4
+            stepsToLock = 3
         }
     }
 
     private var held: [Int64: TimeInterval] = [:]
     private var recent: [(t: TimeInterval, key: Int64)] = []
+    /// When each recent paw landing began.
+    private var steps: [TimeInterval] = []
 
     public init() {}
 
@@ -150,6 +170,7 @@ public final class CatDetector {
     public func reset() {
         held.removeAll()
         recent.removeAll()
+        steps.removeAll()
     }
 
     public func keyDown(_ key: Int64, at t: TimeInterval) -> DetectionVerdict {
@@ -175,6 +196,10 @@ public final class CatDetector {
                     reason: "\(held.count) neighboring keys held at once (paw-sized press)",
                     undoSince: heldSince)
             }
+        }
+
+        if let verdict = pawLanding(at: t) {
+            return verdict
         }
 
         let uniqueRecent = Set(recent.map(\.key))
@@ -206,6 +231,35 @@ public final class CatDetector {
         }
 
         return .notCat
+    }
+
+    /// Keys that went down within `stepWindow` of now are one paw landing.
+    private func pawLanding(at t: TimeInterval) -> DetectionVerdict? {
+        let landing = recent.filter { t - $0.t <= stepWindow }
+        let keys = Set(landing.map(\.key))
+        guard keys.count >= 2, let landedAt = landing.map(\.t).min() else { return nil }
+        let ms = Int(stepWindow * 1000)
+
+        if keys.count >= stepInstantKeys {
+            return DetectionVerdict(
+                isCat: true,
+                reason: "\(keys.count) keys landed within \(ms) ms (a paw)",
+                undoSince: landedAt)
+        }
+
+        let pos = keys.compactMap(KeyLayout.position(for:))
+        guard pos.count == 2, distance(pos[0], pos[1]) <= stepClusterRadius else { return nil }
+
+        // The same landing is seen again as its keys arrive; record it once.
+        if steps.last.map({ landedAt - $0 > stepWindow }) ?? true {
+            steps.append(landedAt)
+        }
+        steps.removeAll { t - $0 > walkWindow }
+        guard steps.count >= stepsToLock, let first = steps.first else { return nil }
+        return DetectionVerdict(
+            isCat: true,
+            reason: "\(steps.count) paw steps in \(Int(walkWindow)) s (cat walking)",
+            undoSince: first)
     }
 
     /// Recent keys in the order they were pressed, without consecutive repeats.
